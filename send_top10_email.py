@@ -11,7 +11,7 @@ REPORT_PATH = BASE_DIR / "reports" / "top10_email.html"
 GMAIL_USERNAME = os.getenv("GMAIL_USERNAME", "").strip()
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "").strip()
 
-TO_EMAILS = ["jzou1995@gmail.com", "tom@lossdog.com"]
+TO_EMAILS = ["jzou1995@gmail.com"]
 
 
 def main():
