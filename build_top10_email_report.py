@@ -12,7 +12,7 @@ REPORT_DIR = BASE_DIR / "reports"
 REPORT_DIR.mkdir(exist_ok=True)
 
 API_KEY = os.getenv("GEMINI_API_KEY", "").strip().strip('"').strip("'")
-MODEL   = "gemini-2.0-flash-lite"
+MODEL   = "gemini-3.1-flash-lite-preview"
 URL     = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent"
 
 
@@ -317,7 +317,7 @@ def call_gemini(clean_data, max_retries=5):
         }],
         "generationConfig": {
             "temperature":     0.45,   # raised from 0.25 — prevents generic register
-            "maxOutputTokens": 2400
+            "maxOutputTokens": 65000
         },
     }
 
