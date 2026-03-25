@@ -1,0 +1,7 @@
+requests
+python-dotenv
+yfinance
+pandas
+beautifulsoup4
+lxml
+scipy
