@@ -3,7 +3,9 @@ name: Daily Options Premium Scanner
 on:
   workflow_dispatch:
   schedule:
-    - cron: '15 12 * * 1-5'
+    # 7:00 AM Central during daylight saving time (CDT) = 12:00 UTC
+    # Change to "0 13 * * 1-5" during standard time (CST) if you want exact 7:00 AM local year-round
+    - cron: "0 12 * * 1-5"
 
 jobs:
   run-daily-scan:
@@ -17,12 +19,16 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-actions.txt
+          if [ -f requirements-actions.txt ]; then
+            pip install -r requirements-actions.txt
+          else
+            pip install requests yfinance pandas beautifulsoup4 lxml scipy python-dotenv
+          fi
 
       - name: Download universe.csv from Google Sheets
         env:
@@ -31,6 +37,8 @@ jobs:
           python download_universe_csv.py
 
       - name: Run fetch
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python fetch.py
 
@@ -42,7 +50,7 @@ jobs:
         run: |
           python calculator.py
 
-      - name: Build top-10 email report
+      - name: Build top-10 email payload and HTML
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
@@ -55,10 +63,12 @@ jobs:
         run: |
           python send_top10_email.py
 
-      - name: Upload output artifacts
+      - name: Upload generated artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: daily-options-output
           path: |
             data/**
             reports/**
+            universe.csv
