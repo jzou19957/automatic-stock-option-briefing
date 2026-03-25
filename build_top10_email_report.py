@@ -16,58 +16,54 @@ MODEL = "gemini-3.1-flash-lite-preview"
 URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent"
 
 EMAIL_PROMPT = """
-You are a structured options email formatter.
+You are a structured options research formatter.
 
 You receive one stock's calculated options analysis in semi-clean JSON.
-Convert it into a concise, trader-friendly, email-ready JSON.
+Convert it into a professional, desk-style, email-ready JSON output.
 
 RULES:
 - Output valid JSON only
 - No markdown
 - No explanation outside JSON
 - No extra keys
-- Use only provided values
-- Keep language concise and trader-friendly
-- The result should be rich enough for an email card
-- Keep risk flags short
-- Keep summary_for_traders informative but concise
+- Use only provided values and facts
+- Sound professional, financial, and concise
+- management_notes should be natural language and practically useful
+- position_summary should be comprehensive and 5 to 8 sentences
+- Do not sound educational or generic
+- Make the output read like internal research / trader commentary
 
 OUTPUT SCHEMA:
 {
   "ticker": str,
-  "highlights": {
-    "premium_attractiveness_score": str,
+  "report_date": str,
+  "top_row": {
+    "premium_score": str,
+    "strategy_name": str,
+    "current_price": float
+  },
+  "basic_stats": {
     "iv": float,
     "ivr": float,
     "bias": str,
-    "recommended_strategy": str,
-    "expiry_date": str,
-    "dte": int,
-    "strike_details": str,
-    "management_date": str
+    "recommended_strikes": str,
+    "dte": int
   },
-  "risk_flags": [str],
-  "management_triggers": {
-    "take_profit": str,
-    "time_based_management": str,
-    "upside_alert_price": float,
-    "downside_alert_price": float,
-    "alert_note": str
-  },
-  "summary_for_traders": str
+  "management_notes": str,
+  "position_summary": str
 }
 
 CONTENT RULES:
-- premium_attractiveness_score should look like "2.6/10"
-- include IV and IVR in highlights
-- strike_details should be simple and human-readable
-- if strategy is skip / none, make that explicit
-- use management rules from input
-- use upside/downside alert levels from input
-- summary_for_traders should explain:
-  1. what the setup looks like,
+- premium_score should look like "5.9/10"
+- strategy_name should be explicit; if no trade, say "NONE - SKIP"
+- recommended_strikes should be direct and human-readable; if no trade, say "N/A - NO EDGE"
+- management_notes should describe profit-taking, time-based management, and key alert/risk behavior naturally
+- position_summary should explain:
+  1. the volatility / premium setup,
   2. why the strategy was chosen,
-  3. what the trader should watch
+  3. the main risk factors,
+  4. what the trader should watch,
+  5. the overall conviction / quality of the setup
 
 INPUT JSON:
 """
@@ -103,7 +99,7 @@ def build_email_llm_input(data):
 
     return {
         "ticker": data.get("ticker"),
-        "analysis_date": data.get("analysis_date"),
+        "report_date": data.get("analysis_date"),
         "stock_price": data.get("stock_price"),
         "iv_30": data.get("iv_30"),
         "ivr": data.get("ivr"),
@@ -157,43 +153,53 @@ def fallback_email_json(clean_input):
     strategy_name = strat.get("strategy") or "NONE - SKIP"
     strike_details = strat.get("legs") or "N/A - NO EDGE"
 
-    risk_flags = []
-    if clean_input.get("earnings_note"):
-        risk_flags.append(clean_input["earnings_note"])
+    management_bits = []
+    if strat.get("take_profit_at") is not None:
+        management_bits.append(
+            f"Take profits at 50% of original credit when the position value reaches {strat.get('take_profit_at')}."
+        )
+    if strat.get("management_date"):
+        management_bits.append(
+            f"Do not let the trade drift past 21 DTE management; review or close by {strat.get('management_date')}."
+        )
+    if clean_input.get("half_one_sd_upside_alert") is not None and clean_input.get("half_one_sd_downside_alert") is not None:
+        management_bits.append(
+            f"Use {clean_input.get('half_one_sd_upside_alert')} on the upside and {clean_input.get('half_one_sd_downside_alert')} on the downside as early warning levels."
+        )
     if strat.get("expected_move_safety_note"):
-        risk_flags.append(strat["expected_move_safety_note"])
-    if strat.get("meets_one_third") is False:
-        risk_flags.append("Does not meet the one-third credit rule")
-    if not risk_flags:
-        risk_flags.append("Fallback summary used because Gemini was temporarily unavailable")
+        management_bits.append(strat.get("expected_move_safety_note"))
+
+    management_notes = " ".join(management_bits).strip()
+    if not management_notes:
+        management_notes = "Respect profit-taking discipline, manage risk early, and monitor expected-move warning levels."
+
+    position_summary = (
+        f"{clean_input.get('ticker')} currently carries a premium attractiveness score of {score_text}, "
+        f"with IV at {clean_input.get('iv_30')} and IVR at {clean_input.get('ivr')}. "
+        f"The setup leans {clean_input.get('bias')}, and the current strategy recommendation is {strategy_name}. "
+        f"This name should be judged in the context of its event risk, implied-versus-realized volatility relationship, and expected-move profile. "
+        f"The trade structure is being chosen to align with the directional bias while keeping the risk framework explicit. "
+        f"Traders should watch whether price starts moving toward the half-standard-deviation alert levels, because that can be an early sign that the position is becoming less comfortable. "
+        f"Overall, this should be treated according to the stated premium score rather than as a blanket high-conviction opportunity."
+    )
 
     return {
         "ticker": clean_input.get("ticker"),
-        "highlights": {
-            "premium_attractiveness_score": score_text,
+        "report_date": clean_input.get("report_date"),
+        "top_row": {
+            "premium_score": score_text,
+            "strategy_name": strategy_name,
+            "current_price": clean_input.get("stock_price"),
+        },
+        "basic_stats": {
             "iv": clean_input.get("iv_30"),
             "ivr": clean_input.get("ivr"),
             "bias": clean_input.get("bias"),
-            "recommended_strategy": strategy_name,
-            "expiry_date": strat.get("expiry"),
+            "recommended_strikes": strike_details,
             "dte": strat.get("dte"),
-            "strike_details": strike_details,
-            "management_date": strat.get("management_date") or clean_input.get("management_date"),
         },
-        "risk_flags": risk_flags[:4],
-        "management_triggers": {
-            "take_profit": f"Close position at 50% of original credit ({strat.get('take_profit_at')})",
-            "time_based_management": f"Close or roll position at 21 DTE on {strat.get('management_date') or clean_input.get('management_date')}",
-            "upside_alert_price": clean_input.get("half_one_sd_upside_alert"),
-            "downside_alert_price": clean_input.get("half_one_sd_downside_alert"),
-            "alert_note": "These levels represent halfway to the 1 standard deviation expected move and should be used as early warning indicators.",
-        },
-        "summary_for_traders": (
-            f"{clean_input.get('ticker')} has a premium attractiveness score of {score_text}. "
-            f"Current IV is {clean_input.get('iv_30')} and IVR is {clean_input.get('ivr')}, with a {clean_input.get('bias')} bias. "
-            f"The current recommendation is {strategy_name}. "
-            f"Monitor the alert levels and respect the 50% profit and 21 DTE management rules."
-        ),
+        "management_notes": management_notes,
+        "position_summary": position_summary,
     }
 
 
@@ -216,8 +222,8 @@ def call_gemini(clean_data, max_retries=5):
             }
         ],
         "generationConfig": {
-            "temperature": 0.2,
-            "maxOutputTokens": 1800
+            "temperature": 0.25,
+            "maxOutputTokens": 2200
         }
     }
 
@@ -301,161 +307,175 @@ def load_top10():
     return latest, ranked[:10]
 
 
-def fmt_num(value, decimals=2):
+def fmt_num(value, decimals=2, prefix=""):
     if isinstance(value, (int, float)):
-        return f"{value:.{decimals}f}"
+        return f"{prefix}{value:.{decimals}f}"
     return "N/A"
 
 
-def badge_style(score_text):
+def score_to_pct(score_text):
     try:
         score = float(str(score_text).split("/")[0])
     except Exception:
         score = 0.0
-
-    if score >= 7:
-        return ("#dcfce7", "#166534", "#86efac")
-    if score >= 5:
-        return ("#fef3c7", "#92400e", "#fcd34d")
-    if score >= 3:
-        return ("#fee2e2", "#991b1b", "#fca5a5")
-    return ("#e5e7eb", "#374151", "#cbd5e1")
+    pct = max(0, min(score * 10, 100))
+    return pct
 
 
-def strategy_style(strategy):
-    s = (strategy or "").upper()
-    if "SKIP" in s or "NONE" in s:
-        return ("#f3f4f6", "#6b7280", "#e5e7eb")
+def score_colors(score_text):
+    pct = score_to_pct(score_text)
+    if pct >= 70:
+        return ("#16a34a", "#22c55e")
+    if pct >= 50:
+        return ("#ca8a04", "#eab308")
+    if pct >= 30:
+        return ("#ea580c", "#f59e0b")
+    return ("#64748b", "#94a3b8")
+
+
+def strategy_chip_colors(strategy_name):
+    name = (strategy_name or "").upper()
+    if "SKIP" in name or "NONE" in name:
+        return ("#f8fafc", "#64748b", "#e2e8f0")
     return ("#eff6ff", "#1d4ed8", "#bfdbfe")
 
 
-def render_stat_pill(label, value):
+def build_card(item):
+    top = item["top_row"]
+    stats = item["basic_stats"]
+
+    score_text = top["premium_score"]
+    score_pct = score_to_pct(score_text)
+    bar_start, bar_end = score_colors(score_text)
+    chip_bg, chip_fg, chip_bd = strategy_chip_colors(top["strategy_name"])
+
     return f"""
-    <div style="display:inline-block;background:#f8fafc;border:1px solid #e5e7eb;border-radius:999px;
-                padding:6px 10px;margin:4px 6px 0 0;font-size:12px;color:#334155;">
-      <span style="color:#64748b;">{label}:</span> <b>{value}</b>
+    <div style="background:#ffffff;border:1px solid #dbe2ea;border-radius:16px;
+                padding:22px 22px 18px 22px;margin-bottom:18px;
+                box-shadow:0 8px 22px rgba(15,23,42,0.05);">
+
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;">
+        <div style="font-size:28px;font-weight:800;color:#0f172a;letter-spacing:0.2px;">
+          {item['ticker']}
+        </div>
+
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <div style="background:#0f172a;color:#ffffff;border-radius:999px;padding:8px 12px;
+                      font-size:13px;font-weight:700;">
+            Score {score_text}
+          </div>
+          <div style="background:{chip_bg};color:{chip_fg};border:1px solid {chip_bd};
+                      border-radius:999px;padding:8px 12px;font-size:13px;font-weight:700;">
+            {top['strategy_name']}
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;">
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;">
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.7px;">Current Price</div>
+          <div style="margin-top:4px;font-size:16px;font-weight:700;color:#0f172a;">{fmt_num(top['current_price'], 2, '$')}</div>
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;">
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.7px;">Report Date</div>
+          <div style="margin-top:4px;font-size:16px;font-weight:700;color:#0f172a;">{item['report_date']}</div>
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;">
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.7px;">IV</div>
+          <div style="margin-top:4px;font-size:16px;font-weight:700;color:#0f172a;">{stats['iv']}</div>
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;">
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.7px;">IVR</div>
+          <div style="margin-top:4px;font-size:16px;font-weight:700;color:#0f172a;">{stats['ivr']}</div>
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;">
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.7px;">Bias</div>
+          <div style="margin-top:4px;font-size:16px;font-weight:700;color:#0f172a;">{stats['bias']}</div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;display:grid;grid-template-columns:3fr 1fr;gap:10px;">
+        <div style="background:#0f172a;border-radius:14px;padding:14px 16px;">
+          <div style="font-size:11px;color:#93c5fd;text-transform:uppercase;letter-spacing:0.8px;font-weight:700;">
+            Recommended Strikes
+          </div>
+          <div style="margin-top:6px;font-size:18px;line-height:1.5;font-weight:800;color:#ffffff;">
+            {stats['recommended_strikes']}
+          </div>
+        </div>
+        <div style="background:#0f172a;border-radius:14px;padding:14px 16px;">
+          <div style="font-size:11px;color:#93c5fd;text-transform:uppercase;letter-spacing:0.8px;font-weight:700;">
+            DTE
+          </div>
+          <div style="margin-top:6px;font-size:22px;line-height:1.3;font-weight:800;color:#ffffff;">
+            {stats['dte']}
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;">
+        <div style="font-size:11px;color:#475569;text-transform:uppercase;letter-spacing:0.8px;font-weight:700;">
+          Management Notes
+        </div>
+        <div style="margin-top:8px;font-size:14px;line-height:1.75;color:#0f172a;">
+          {item['management_notes']}
+        </div>
+      </div>
+
+      <div style="margin-top:14px;background:#fafafa;border-left:4px solid #1d4ed8;border-radius:12px;padding:16px 18px;">
+        <div style="font-size:11px;color:#475569;text-transform:uppercase;letter-spacing:0.8px;font-weight:700;">
+          Position Summary
+        </div>
+        <div style="margin-top:8px;font-size:14px;line-height:1.85;color:#111827;">
+          {item['position_summary']}
+        </div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;
+                    font-size:12px;font-weight:700;color:#475569;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.6px;">
+          <span>Premium Score</span>
+          <span>{score_text}</span>
+        </div>
+        <div style="width:100%;height:10px;background:#e5e7eb;border-radius:999px;overflow:hidden;">
+          <div style="width:{score_pct}%;height:100%;
+                      background:linear-gradient(90deg,{bar_start} 0%,{bar_end} 100%);
+                      border-radius:999px;">
+          </div>
+        </div>
+      </div>
+
     </div>
     """
 
 
 def build_html_email(top10_email_json, as_of_date):
-    cards = []
+    cards_html = "".join(build_card(item) for item in top10_email_json)
 
-    for idx, item in enumerate(top10_email_json, 1):
-        h = item["highlights"]
-        risks = item.get("risk_flags", [])
-        mgmt = item["management_triggers"]
-
-        score_bg, score_fg, score_bd = badge_style(h["premium_attractiveness_score"])
-        strat_bg, strat_fg, strat_bd = strategy_style(h["recommended_strategy"])
-
-        risk_html = "".join(
-            f'<li style="margin:0 0 6px 0;">{r}</li>' for r in risks[:4]
-        ) or '<li style="margin:0;">No major flags provided.</li>'
-
-        stat_row = "".join([
-            render_stat_pill("Score", h["premium_attractiveness_score"]),
-            render_stat_pill("IV", h["iv"]),
-            render_stat_pill("IVR", h["ivr"]),
-            render_stat_pill("Bias", h["bias"]),
-            render_stat_pill("Expiry", h["expiry_date"]),
-            render_stat_pill("DTE", h["dte"]),
-        ])
-
-        card = f"""
-        <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:18px;
-                    padding:20px;margin-bottom:18px;box-shadow:0 6px 18px rgba(15,23,42,0.05);">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
-            <div>
-              <div style="font-size:26px;font-weight:800;color:#0f172a;letter-spacing:0.2px;">#{idx} {item['ticker']}</div>
-              <div style="margin-top:8px;">{stat_row}</div>
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <div style="background:{score_bg};color:{score_fg};border:1px solid {score_bd};
-                          border-radius:999px;padding:8px 12px;font-size:13px;font-weight:700;">
-                Premium Score {h['premium_attractiveness_score']}
-              </div>
-              <div style="background:{strat_bg};color:{strat_fg};border:1px solid {strat_bd};
-                          border-radius:999px;padding:8px 12px;font-size:13px;font-weight:700;">
-                {h['recommended_strategy']}
-              </div>
-            </div>
-          </div>
-
-          <div style="margin-top:16px;background:#0f172a;border-radius:14px;padding:16px;">
-            <div style="font-size:12px;font-weight:700;letter-spacing:0.7px;color:#93c5fd;text-transform:uppercase;">
-              Recommended Trade
-            </div>
-            <div style="margin-top:8px;font-size:18px;font-weight:700;color:#ffffff;line-height:1.5;">
-              {h['strike_details']}
-            </div>
-            <div style="margin-top:10px;font-size:14px;color:#cbd5e1;line-height:1.8;">
-              <b>Expiry:</b> {h['expiry_date']} ({h['dte']} DTE)&nbsp;&nbsp;|&nbsp;&nbsp;
-              <b>Management Date:</b> {h['management_date']}
-            </div>
-          </div>
-
-          <div style="margin-top:16px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;">
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:14px;">
-              <div style="font-size:12px;font-weight:700;letter-spacing:0.7px;color:#475569;text-transform:uppercase;">
-                Risk Flags
-              </div>
-              <ul style="margin:10px 0 0 18px;padding:0;color:#334155;font-size:14px;line-height:1.55;">
-                {risk_html}
-              </ul>
-            </div>
-
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:14px;">
-              <div style="font-size:12px;font-weight:700;letter-spacing:0.7px;color:#475569;text-transform:uppercase;">
-                Management
-              </div>
-              <div style="margin-top:10px;font-size:14px;color:#334155;line-height:1.75;">
-                <b>Take profit:</b> {mgmt['take_profit']}<br>
-                <b>Manage by:</b> {mgmt['time_based_management']}<br>
-                <b>Upside alert:</b> <span style="font-weight:700;color:#111827;">{fmt_num(mgmt['upside_alert_price'])}</span><br>
-                <b>Downside alert:</b> <span style="font-weight:700;color:#111827;">{fmt_num(mgmt['downside_alert_price'])}</span><br>
-                <span style="color:#64748b;">{mgmt['alert_note']}</span>
-              </div>
-            </div>
-          </div>
-
-          <div style="margin-top:16px;background:#fafafa;border-left:4px solid #3b82f6;border-radius:12px;
-                      padding:14px 16px;color:#111827;font-size:14px;line-height:1.75;">
-            <div style="font-size:12px;font-weight:700;letter-spacing:0.7px;color:#475569;text-transform:uppercase;margin-bottom:6px;">
-              Trader Takeaway
-            </div>
-            {item['summary_for_traders']}
-          </div>
-        </div>
-        """
-        cards.append(card)
-
-    html = f"""
+    return f"""
     <html>
       <body style="margin:0;padding:0;background:#eef2f7;font-family:Inter,Arial,Helvetica,sans-serif;">
-        <div style="max-width:980px;margin:0 auto;padding:24px;">
+        <div style="max-width:1040px;margin:0 auto;padding:24px;">
           <div style="background:linear-gradient(135deg,#0f172a 0%,#1d4ed8 100%);
-                      color:#ffffff;border-radius:20px;padding:28px 28px 24px 28px;margin-bottom:24px;
+                      color:#ffffff;border-radius:20px;padding:30px 30px 24px 30px;margin-bottom:24px;
                       box-shadow:0 10px 30px rgba(15,23,42,0.18);">
-            <div style="font-size:13px;letter-spacing:1px;text-transform:uppercase;color:#bfdbfe;font-weight:700;">
-              Daily Options Briefing
+            <div style="font-size:30px;font-weight:800;line-height:1.2;">
+              Top 10 Premium Selling Setups - Lossdog Research
             </div>
-            <div style="font-size:30px;font-weight:800;line-height:1.2;margin-top:8px;">
-              Top 10 Premium Selling Setups
-            </div>
-            <div style="font-size:15px;line-height:1.7;color:#dbeafe;margin-top:10px;max-width:760px;">
-              {as_of_date} • ranked from your liquid mega-cap / ETF universe • sorted by premium attractiveness score
+            <div style="font-size:15px;line-height:1.7;color:#dbeafe;margin-top:10px;max-width:820px;">
+              {as_of_date} | Liquid Mega-Cap / ETF Universe | Ranked by Premium Attractiveness
             </div>
           </div>
-          {''.join(cards)}
-          <div style="text-align:center;color:#64748b;font-size:12px;padding:8px 0 18px 0;">
-            Generated automatically from your Google Sheet universe, options pipeline, and Gemini trade summarizer.
+
+          {cards_html}
+
+          <div style="text-align:center;color:#64748b;font-size:12px;padding:10px 0 18px 0;">
+            Generated automatically from your Google Sheet universe, options pipeline, and Gemini research formatter.
           </div>
         </div>
       </body>
     </html>
     """
-    return html
 
 
 def main():
