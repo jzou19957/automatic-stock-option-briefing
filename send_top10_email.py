@@ -5,8 +5,9 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR    = Path(__file__).resolve().parent
 REPORT_PATH = BASE_DIR / "reports" / "top10_email.html"
+SUBJECT_PATH = BASE_DIR / "reports" / "top10_email_subject.txt"
 
 GMAIL_USERNAME = os.getenv("GMAIL_USERNAME", "").strip()
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "").strip()
@@ -26,7 +27,10 @@ def main():
         raise RuntimeError("Email HTML file is empty")
 
     today_str = datetime.now().strftime("%Y-%m-%d")
-    subject = f"{today_str} — Top 10 Best Premium Selling of 50 Liquid Megacap/ETF"
+    if SUBJECT_PATH.exists():
+        subject = SUBJECT_PATH.read_text(encoding="utf-8").strip()
+    else:
+        subject = f"{today_str} — Top 10 Premium Selling Setups"
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject

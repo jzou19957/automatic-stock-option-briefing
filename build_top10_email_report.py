@@ -103,6 +103,12 @@ position_summary (5-7 sentences, desk voice):
   Sentence 5: Expected move context — does 1 sigma clear the short strike? By how much?
   Sentence 6 (optional): Skew or earnings note if relevant.
   Sentence 7: One-line conviction statement. Blunt. E.g. "This is a clean structure at fair credit — take it." or "Marginal setup; size accordingly."
+  Final line: Always close with a one-sentence Lossdog/Tastytrade framework reference. Vary the wording naturally but always name both.
+  Examples:
+    "Per Lossdog/Tastytrade mechanics: 50% profit target, hard close at 21 DTE, roll only OTM for net credit."
+    "Lossdog/Tastytrade rule: defined risk mandatory with earnings inside the window — no exceptions."
+    "Standard Lossdog/Tastytrade pipeline: take 50% and step aside by [mgmt_date], no holding through expiry."
+    "Lossdog/Tastytrade framework: size small, sell premium at elevated IV/HV, let theta do the work."
 
   NEVER use: "it is important to note", "traders should be aware", "in the context of",
              "should be considered", "provides an opportunity", "this setup represents"
@@ -271,10 +277,16 @@ def fallback_email_json(clean_input):
               else "Low edge — skip or wait for a better vol entry.")
     )
 
+    framework_line = (
+        f"Per Lossdog/Tastytrade mechanics: 50% profit target, hard close at 21 DTE ({mgmt_date}), roll only OTM for net credit."
+        if mgmt_date
+        else "Per Lossdog/Tastytrade mechanics: 50% profit target, hard close at 21 DTE, roll only OTM for net credit."
+    )
+
     position_summary = (
         f"{edge_line} "
         f"{bias} posture drove selection of {strategy_name}."
-        f" {legs}.{be_line}{em_line}{earn_line} {conviction}"
+        f" {legs}.{be_line}{em_line}{earn_line} {conviction} {framework_line}"
     )
 
     return {
@@ -434,9 +446,8 @@ def strategy_label_style(strategy_name):
         return "#f0fdf4", "#15803d", "#bbf7d0"
     return "#fff7ed", "#c2410c", "#fed7aa"
 
-
 # ─────────────────────────────────────────────────────────────────────────────
-#  Card builder  ·  Institutional-grade, Bloomberg terminal aesthetic
+#  Card builder  —  pure <table> layout, matches approved preview
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build_card(item, rank):
@@ -444,185 +455,267 @@ def build_card(item, rank):
     stats  = item.get("basic_stats", {})
     ticker = item.get("ticker", "???")
 
-    score_text            = top.get("premium_score", "—")
-    strategy_name         = top.get("strategy_name", "—")
-    score_pct             = score_to_pct(score_text)
-    bar_color, tier       = score_band(score_text)
+    score_text                = top.get("premium_score", "—")
+    strategy_name             = top.get("strategy_name", "—")
+    score_pct                 = score_to_pct(score_text)
+    bar_color, tier           = score_band(score_text)
     chip_bg, chip_fg, chip_bd = strategy_label_style(strategy_name)
-    price_display         = fmt_num(top.get("current_price"), 2, "$")
+    price_display             = fmt_num(top.get("current_price"), 2, "$")
 
-    def stat_row(label, value, accent=False):
-        val_color = "#1d4ed8" if accent else "#0f172a"
-        return f"""
-        <tr>
-          <td style="padding:6px 0 6px 0;font-size:11px;color:#64748b;
-                     font-family:'Courier New',Courier,monospace;letter-spacing:0.5px;
-                     border-bottom:1px solid #f1f5f9;white-space:nowrap;width:50%;">{label}</td>
-          <td style="padding:6px 0 6px 0;font-size:11.5px;font-weight:700;color:{val_color};
-                     text-align:right;border-bottom:1px solid #f1f5f9;
-                     font-family:'Courier New',Courier,monospace;">{value}</td>
-        </tr>"""
+    is_skip = any(x in strategy_name.upper() for x in ("SKIP", "NONE"))
 
-    stats_table = f"""
-    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-      {stat_row("IV (30d)",   stats.get("iv",   "—"))}
-      {stat_row("IVR",        stats.get("ivr",  "—"))}
-      {stat_row("IV / HV",    stats.get("iv_hv","—"), accent=True)}
-      {stat_row("BIAS",       stats.get("bias", "—"))}
-      {stat_row("DTE",        stats.get("dte",  "—"))}
-      {stat_row("CREDIT",     stats.get("credit","—"), accent=True)}
-      {stat_row("MGMT DATE",  stats.get("management_date","—"))}
-    </table>"""
+    # ── stat cell helper ─────────────────────────────────────────────────────
+    def sc(label, value, accent=False):
+        vc = "#1d4ed8" if accent else "#0f172a"
+        return (
+            f'<tr>'
+            f'<td style="padding:7px 12px 7px 0;font-size:10.5px;color:#64748b;'
+            f'font-family:\'Courier New\',monospace;border-bottom:1px solid #f1f5f9;'
+            f'white-space:nowrap;">{label}</td>'
+            f'<td style="padding:7px 0 7px 12px;font-size:10.5px;font-weight:700;color:{vc};'
+            f'font-family:\'Courier New\',monospace;text-align:right;'
+            f'border-bottom:1px solid #f1f5f9;">{value}</td>'
+            f'</tr>'
+        )
 
-    score_bar = f"""
-    <div style="margin-top:14px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
-        <span style="font-size:9.5px;font-family:'Courier New',monospace;
-                     color:#94a3b8;letter-spacing:1.5px;">PREMIUM SCORE</span>
-        <span style="font-size:10.5px;font-family:'Courier New',monospace;
-                     font-weight:700;color:{bar_color};">{score_text} · {tier}</span>
-      </div>
-      <div style="height:3px;background:#e2e8f0;border-radius:2px;overflow:hidden;">
-        <div style="width:{score_pct}%;height:100%;background:{bar_color};border-radius:2px;"></div>
-      </div>
-    </div>"""
+    # ── left stats block (IV, IVR, IV/HV, BIAS) ──────────────────────────────
+    left_stats = (
+        sc("IV (30d)", stats.get("iv",    "—")) +
+        sc("IVR",      stats.get("ivr",   "—")) +
+        sc("IV / HV",  stats.get("iv_hv", "—"), accent=True) +
+        sc("BIAS",     stats.get("bias",  "—"))
+    )
 
-    strikes_html = f"""
-    <div style="margin-bottom:14px;padding:11px 14px;background:#0f172a;border-radius:3px;">
-      <div style="font-size:9.5px;font-family:'Courier New',monospace;color:#475569;
-                  letter-spacing:1.5px;margin-bottom:5px;">STRUCTURE</div>
-      <div style="font-size:12px;font-family:'Courier New',Courier,monospace;
-                  color:#e2e8f0;line-height:1.65;word-break:break-word;">
-        {stats.get("recommended_strikes", "—")}
-      </div>
-    </div>"""
+    # ── right stats block (DTE, CREDIT, BREAKEVEN, MGMT DATE) ────────────────
+    breakeven = stats.get("breakeven", "")
+    be_cells  = sc("BREAKEVEN", breakeven) if breakeven and not is_skip else ""
+    right_stats = (
+        sc("DTE",       stats.get("dte",             "—")) +
+        sc("CREDIT",    stats.get("credit",          "—"), accent=True) +
+        be_cells +
+        sc("MGMT DATE", stats.get("management_date", "—"))
+    )
 
-    mgmt_html = f"""
-    <div style="margin-bottom:14px;padding:12px 14px;background:#f8fafc;
-                border-left:3px solid #cbd5e1;">
-      <div style="font-size:9.5px;font-family:'Courier New',monospace;color:#94a3b8;
-                  letter-spacing:1.5px;margin-bottom:6px;">MANAGEMENT</div>
-      <div style="font-size:12.5px;line-height:1.65;color:#334155;">
-        {item.get("management_notes", "—")}
-      </div>
-    </div>"""
+    # ── score bar (table-based, no CSS width tricks) ──────────────────────────
+    filled_w = max(1, int(score_pct))
+    empty_w  = 100 - filled_w
+    score_bar = (
+        f'<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;">'
+        f'<tr>'
+        f'<td style="font-size:9px;font-family:\'Courier New\',monospace;'
+        f'color:#94a3b8;letter-spacing:1px;">PREMIUM SCORE</td>'
+        f'<td style="font-size:9.5px;font-family:\'Courier New\',monospace;'
+        f'font-weight:700;color:{bar_color};text-align:right;">'
+        f'{score_text} &middot; {tier}</td>'
+        f'</tr>'
+        f'<tr><td colspan="2" style="padding-top:5px;">'
+        f'<table width="100%" cellpadding="0" cellspacing="0" style="background:#e2e8f0;">'
+        f'<tr>'
+        f'<td style="width:{filled_w}%;height:3px;background:{bar_color};font-size:0;">&nbsp;</td>'
+        f'<td style="width:{empty_w}%;height:3px;font-size:0;">&nbsp;</td>'
+        f'</tr></table>'
+        f'</td></tr>'
+        f'</table>'
+    )
 
-    summary_html = f"""
-    <div style="padding:12px 14px;background:#f8fafc;
-                border-left:3px solid #3b82f6;">
-      <div style="font-size:9.5px;font-family:'Courier New',monospace;color:#94a3b8;
-                  letter-spacing:1.5px;margin-bottom:6px;">ANALYST NOTE</div>
-      <div style="font-size:12.5px;line-height:1.75;color:#1e293b;">
-        {item.get("position_summary", "—")}
-      </div>
-    </div>"""
+    # ── structure block ───────────────────────────────────────────────────────
+    strikes = stats.get("recommended_strikes", "—")
+    structure_block = "" if is_skip else (
+        f'<table width="100%" cellpadding="0" cellspacing="0" '
+        f'style="background:#f8fafc;border:1px solid #e2e8f0;margin-bottom:10px;">'
+        f'<tr><td style="padding:8px 12px 3px 12px;font-size:9px;'
+        f'font-family:\'Courier New\',monospace;color:#94a3b8;letter-spacing:1.5px;">STRUCTURE</td></tr>'
+        f'<tr><td style="padding:2px 12px 10px 12px;font-size:12px;'
+        f'font-family:\'Courier New\',Courier,monospace;color:#0f172a;line-height:1.6;">'
+        f'{strikes}</td></tr>'
+        f'</table>'
+    )
 
-    return f"""
-    <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:3px;
-                padding:22px 26px;margin-bottom:14px;">
+    # ── management block ──────────────────────────────────────────────────────
+    mgmt_notes = item.get("management_notes", "")
+    mgmt_block = "" if is_skip else (
+        f'<table width="100%" cellpadding="0" cellspacing="0" '
+        f'style="border-left:3px solid #cbd5e1;background:#f8fafc;margin-bottom:10px;">'
+        f'<tr><td style="padding:8px 12px 3px 12px;font-size:9px;'
+        f'font-family:\'Courier New\',monospace;color:#94a3b8;letter-spacing:1.5px;">MANAGEMENT</td></tr>'
+        f'<tr><td style="padding:2px 12px 10px 12px;font-size:12px;'
+        f'line-height:1.65;color:#334155;">{mgmt_notes}</td></tr>'
+        f'</table>'
+    )
 
-      <!-- Header row -->
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;
-                  flex-wrap:wrap;gap:10px;border-bottom:2px solid #0f172a;
-                  padding-bottom:12px;margin-bottom:16px;">
-        <div style="display:flex;align-items:baseline;gap:10px;">
-          <span style="font-size:10px;font-family:'Courier New',monospace;
-                       color:#94a3b8;font-weight:700;letter-spacing:1px;">#{rank}</span>
-          <span style="font-size:26px;font-weight:900;color:#0f172a;
-                       font-family:'Courier New',Courier,monospace;letter-spacing:-0.5px;">{ticker}</span>
-          <span style="font-size:14px;font-weight:600;color:#475569;
-                       font-family:'Courier New',monospace;">{price_display}</span>
-        </div>
-        <div style="background:{chip_bg};color:{chip_fg};border:1px solid {chip_bd};
-                    border-radius:2px;padding:5px 12px;font-size:11px;font-weight:700;
-                    font-family:'Courier New',monospace;letter-spacing:0.5px;
-                    white-space:nowrap;align-self:center;">{strategy_name}</div>
-      </div>
+    # ── analyst note block ────────────────────────────────────────────────────
+    analyst_note = item.get("position_summary", "—")
+    note_block = (
+        f'<table width="100%" cellpadding="0" cellspacing="0" '
+        f'style="border-left:3px solid #3b82f6;background:#f8fafc;">'
+        f'<tr><td style="padding:8px 12px 3px 12px;font-size:9px;'
+        f'font-family:\'Courier New\',monospace;color:#94a3b8;letter-spacing:1.5px;">ANALYST NOTE</td></tr>'
+        f'<tr><td style="padding:2px 12px 12px 12px;font-size:12px;'
+        f'line-height:1.7;color:#1e293b;">{analyst_note}</td></tr>'
+        f'</table>'
+    )
 
-      <!-- Two-col body -->
-      <div style="display:flex;gap:22px;flex-wrap:wrap;">
-        <!-- Stats col -->
-        <div style="min-width:190px;flex:0 0 190px;">
-          {stats_table}
-          {score_bar}
-        </div>
-        <!-- Analysis col -->
-        <div style="flex:1;min-width:240px;">
-          {strikes_html}
-          {mgmt_html}
-          {summary_html}
-        </div>
-      </div>
+    # ── assemble card ─────────────────────────────────────────────────────────
+    return (
+        f'<table width="100%" cellpadding="0" cellspacing="0" '
+        f'style="background:#ffffff;border:1px solid #e2e8f0;margin-bottom:12px;">'
 
-    </div>"""
+        # header row
+        f'<tr><td style="padding:14px 20px 12px 20px;border-bottom:2px solid #0f172a;">'
+        f'<table width="100%" cellpadding="0" cellspacing="0"><tr>'
+        f'<td>'
+        f'<span style="font-size:9px;font-family:\'Courier New\',monospace;color:#94a3b8;'
+        f'font-weight:700;letter-spacing:1px;vertical-align:middle;">#{rank}&nbsp;&nbsp;</span>'
+        f'<span style="font-size:24px;font-weight:900;color:#0f172a;'
+        f'font-family:\'Courier New\',Courier,monospace;letter-spacing:-0.5px;'
+        f'vertical-align:middle;">{ticker}</span>'
+        f'<span style="font-size:13px;font-weight:600;color:#64748b;'
+        f'font-family:\'Courier New\',monospace;vertical-align:middle;">'
+        f'&nbsp;&nbsp;{price_display}</span>'
+        f'</td>'
+        f'<td style="text-align:right;vertical-align:middle;">'
+        f'<span style="background:{chip_bg};color:{chip_fg};border:1px solid {chip_bd};'
+        f'padding:4px 12px;font-size:10.5px;font-weight:700;'
+        f'font-family:\'Courier New\',monospace;letter-spacing:0.3px;white-space:nowrap;">'
+        f'{strategy_name}</span>'
+        f'</td>'
+        f'</tr></table>'
+        f'</td></tr>'
+
+        # two-column stats row
+        f'<tr><td style="padding:0 20px;">'
+        f'<table width="100%" cellpadding="0" cellspacing="0">'
+        f'<tr>'
+        f'<td style="width:50%;vertical-align:top;padding:0;">'
+        f'<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'
+        f'{left_stats}</table></td>'
+        f'<td style="width:50%;vertical-align:top;padding:0;">'
+        f'<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'
+        f'{right_stats}</table></td>'
+        f'</tr></table>'
+        f'</td></tr>'
+
+        # score bar
+        f'<tr><td style="padding:0 20px 12px 20px;">{score_bar}</td></tr>'
+
+        # structure + management + analyst note
+        f'<tr><td style="padding:0 20px 16px 20px;">'
+        f'{structure_block}{mgmt_block}{note_block}'
+        f'</td></tr>'
+
+        f'</table>'
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  Email wrapper
+#  Email wrapper  —  clean header matching approved preview
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build_html_email(top10_email_json, as_of_date):
-    cards_html = "".join(build_card(item, rank=i + 1) for i, item in enumerate(top10_email_json))
+    cards_html = "".join(
+        build_card(item, rank=i + 1) for i, item in enumerate(top10_email_json)
+    )
+
+    # top 3 tickers for header
+    top3 = [item.get("ticker", "") for item in top10_email_json[:3]]
+    rest = len(top10_email_json) - 3
+    symbols_line = " &nbsp;&middot;&nbsp; ".join(top3)
+    if rest > 0:
+        symbols_line += f" &nbsp;&middot;&nbsp; +{rest} more"
+
+    # human-readable date
+    try:
+        dt = datetime.strptime(as_of_date, "%Y-%m-%d")
+        date_display = dt.strftime("%B %-d, %Y")
+    except Exception:
+        date_display = as_of_date
+
+    # email subject line (used by send_top10_email.py via file read — kept as HTML comment)
+    subject_tickers = ", ".join(item.get("ticker", "") for item in top10_email_json[:3])
 
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Premium Selling Report · {as_of_date}</title>
+  <title>Top 10 Premium Selling: {subject_tickers} &amp; more · {as_of_date}</title>
 </head>
-<body style="margin:0;padding:0;background:#e2e8f0;
-             font-family:system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;">
+<body style="margin:0;padding:0;background:#e2e8f0;font-family:system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;">
+<div style="max-width:700px;margin:28px auto 48px auto;">
 
-  <div style="max-width:860px;margin:28px auto 48px auto;">
+  <!-- HEADER -->
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;">
+    <tr>
+      <td style="padding:26px 32px 8px 32px;">
+        <div style="font-size:20px;font-weight:800;color:#f8fafc;letter-spacing:-0.3px;line-height:1.2;">
+          Lossdog Top 10 Premium Selling Setups
+        </div>
+        <div style="font-size:11px;color:#64748b;font-family:'Courier New',monospace;margin-top:5px;">
+          From 50 most liquid mega-cap &amp; ETF universe &nbsp;&middot;&nbsp; 45 DTE monthly expiry
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:10px 32px;">
+        <div style="height:1px;background:#1e293b;"></div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:0 32px 14px 32px;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="font-size:11px;font-family:'Courier New',monospace;color:#94a3b8;">
+              {date_display}
+            </td>
+            <td style="text-align:right;">
+              <span style="font-size:10px;font-family:'Courier New',monospace;color:#475569;">
+                {symbols_line}
+              </span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:0 32px;">
+        <div style="height:2px;background:linear-gradient(90deg,#3b82f6 0%,#1e40af 60%,transparent 100%);"></div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:8px 32px 10px 32px;">
+        <table cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="font-size:9px;font-family:'Courier New',monospace;color:#475569;padding-right:14px;">SCORE:</td>
+            <td style="font-size:9px;font-family:'Courier New',monospace;color:#10b981;padding-right:12px;">&#9646; &ge;7.5 EXCELLENT</td>
+            <td style="font-size:9px;font-family:'Courier New',monospace;color:#3b82f6;padding-right:12px;">&#9646; 6&ndash;7.5 GOOD</td>
+            <td style="font-size:9px;font-family:'Courier New',monospace;color:#f59e0b;padding-right:12px;">&#9646; 4.5&ndash;6 MODERATE</td>
+            <td style="font-size:9px;font-family:'Courier New',monospace;color:#f97316;padding-right:12px;">&#9646; 3&ndash;4.5 WEAK</td>
+            <td style="font-size:9px;font-family:'Courier New',monospace;color:#64748b;">&#9646; &lt;3 SKIP</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 
-    <!-- HEADER -->
-    <div style="background:#0f172a;padding:32px 40px 26px 40px;">
-      <div style="font-size:10px;font-family:'Courier New',monospace;
-                  color:#475569;letter-spacing:2.5px;margin-bottom:10px;">
-        LOSSDOG RESEARCH &nbsp;&middot;&nbsp; OPTIONS PIPELINE &nbsp;&middot;&nbsp; {as_of_date}
-      </div>
-      <div style="font-size:24px;font-weight:800;color:#f8fafc;
-                  letter-spacing:-0.2px;line-height:1.1;">
-        Top 10 Premium Selling Setups
-      </div>
-      <div style="font-size:12px;color:#64748b;margin-top:6px;
-                  font-family:'Courier New',monospace;letter-spacing:0.3px;">
-        Liquid Mega-Cap / ETF Universe &nbsp;&middot;&nbsp; 45 DTE Monthly Expiry &nbsp;&middot;&nbsp; Tastytrade Framework
-      </div>
-      <div style="height:2px;background:linear-gradient(90deg,#3b82f6 0%,#1e40af 55%,transparent 100%);
-                  margin-top:20px;"></div>
-    </div>
-
-    <!-- LEGEND -->
-    <div style="background:#1e293b;padding:9px 40px;display:flex;gap:20px;flex-wrap:wrap;
-                align-items:center;">
-      <span style="font-size:9.5px;font-family:'Courier New',monospace;
-                   color:#64748b;letter-spacing:1px;">SCORE:</span>
-      <span style="font-size:9.5px;font-family:'Courier New',monospace;color:#10b981;">&#9646; &ge;7.5 EXCELLENT</span>
-      <span style="font-size:9.5px;font-family:'Courier New',monospace;color:#3b82f6;">&#9646; 6&ndash;7.5 GOOD</span>
-      <span style="font-size:9.5px;font-family:'Courier New',monospace;color:#f59e0b;">&#9646; 4.5&ndash;6 MODERATE</span>
-      <span style="font-size:9.5px;font-family:'Courier New',monospace;color:#f97316;">&#9646; 3&ndash;4.5 WEAK</span>
-      <span style="font-size:9.5px;font-family:'Courier New',monospace;color:#94a3b8;">&#9646; &lt;3 SKIP</span>
-    </div>
-
-    <!-- CARDS -->
-    <div style="background:#f1f5f9;padding:20px 24px;">
+  <!-- CARDS -->
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#e8ecf0;">
+    <tr><td style="padding:16px 20px 4px 20px;">
       {cards_html}
-    </div>
+    </td></tr>
+  </table>
 
-    <!-- FOOTER -->
-    <div style="background:#0f172a;padding:14px 40px;display:flex;
-                justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-      <span style="font-size:9.5px;font-family:'Courier New',monospace;color:#334155;">
-        LOSSDOG RESEARCH &nbsp;&middot;&nbsp; For internal use only &nbsp;&middot;&nbsp; Not investment advice
-      </span>
-      <span style="font-size:9.5px;font-family:'Courier New',monospace;color:#334155;">
-        {as_of_date}
-      </span>
-    </div>
+  <!-- FOOTER -->
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;border-top:1px solid #1e293b;">
+    <tr>
+      <td style="padding:12px 32px;">
+        <div style="font-size:9px;font-family:'Courier New',monospace;color:#334155;">
+          Lossdog Research &nbsp;&middot;&nbsp; Not investment advice &nbsp;&middot;&nbsp; For personal use only
+        </div>
+      </td>
+    </tr>
+  </table>
 
-  </div>
+</div>
 </body>
 </html>"""
 
@@ -658,25 +751,31 @@ def main():
     today_str = datetime.now().strftime("%Y-%m-%d")
     html      = build_html_email(email_json, today_str)
 
+    # dynamic email subject for send_top10_email.py
+    top3_symbols = ", ".join(item.get("ticker", "") for item in email_json[:3])
+    subject_hint = f"Top 10 Premium Selling: {top3_symbols} & more — {today_str}"
+
     (REPORT_DIR / "top10_email_payload.json").write_text(
         json.dumps(email_json, indent=2, ensure_ascii=False), encoding="utf-8"
     )
     (REPORT_DIR / "top10_email.html").write_text(html, encoding="utf-8")
+    (REPORT_DIR / "top10_email_subject.txt").write_text(subject_hint, encoding="utf-8")
     (REPORT_DIR / "top10_email_debug.json").write_text(
         json.dumps({
             "source_date_folder":           str(latest),
             "failed_tickers_used_fallback": failed_tickers,
             "generated_at":                 today_str,
             "count":                        len(email_json),
+            "email_subject":                subject_hint,
         }, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
 
-    print(f"\nSaved reports to {REPORT_DIR}")
-    print(f"  top10_email.html  ({(REPORT_DIR / 'top10_email.html').stat().st_size:,} bytes)")
-    print(f"  top10_email_payload.json")
+    print(f"\nSaved to {REPORT_DIR}")
+    print(f"  top10_email.html        ({(REPORT_DIR / 'top10_email.html').stat().st_size:,} bytes)")
+    print(f"  top10_email_subject.txt  {subject_hint}")
     if failed_tickers:
-        print(f"  WARNING: Fallback used for: {', '.join(failed_tickers)}")
+        print(f"  WARNING fallback used:  {', '.join(failed_tickers)}")
 
 
 if __name__ == "__main__":

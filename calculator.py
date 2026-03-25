@@ -275,7 +275,7 @@ def find_spread_long(chain, side, short_strike, width=5):
 # ── Strategy builders ─────────────────────────────────────────────────────────
 
 def build_management_rules(strategy_type, S, short_strike, credit,
-                            em_levels, expiry_str, mgmt_date_str):
+                            em_levels, expiry_str, mgmt_date_str, ticker=""):
     """
     Build specific management rules with price targets for a strategy.
     All rules are pure math — no opinions.
@@ -291,7 +291,7 @@ def build_management_rules(strategy_type, S, short_strike, credit,
         return {
             "strategy_type":    "put_spread",
             "breakeven_price":  be,
-            "breakeven_note":   f"MSFT must stay ABOVE ${be} to be profitable",
+            "breakeven_note":   f"{ticker} must stay ABOVE ${be} to be profitable",
             "take_profit":      {
                 "trigger":      f"Close spread when spread value = ${tp_credit}",
                 "credit_target": tp_credit,
@@ -319,7 +319,7 @@ def build_management_rules(strategy_type, S, short_strike, credit,
         return {
             "strategy_type":    "call_spread",
             "breakeven_price":  be,
-            "breakeven_note":   f"MSFT must stay BELOW ${be} to be profitable",
+            "breakeven_note":   f"{ticker} must stay BELOW ${be} to be profitable",
             "take_profit":      {
                 "trigger":      f"Close spread when spread value = ${tp_credit}",
                 "credit_target": tp_credit,
@@ -347,7 +347,7 @@ def build_management_rules(strategy_type, S, short_strike, credit,
         # For condor, short_strike is put short, credit is total
         return {
             "strategy_type":       "iron_condor",
-            "profit_zone":         f"MSFT between ${put_be} and ${round(put_be + credit + 10, 2)} at expiry",
+            "profit_zone":         f"{ticker} between ${put_be} and ${round(put_be + credit + 10, 2)} at expiry",
             "take_profit":         {
                 "trigger":         f"Close entire condor when total value = ${tp_credit}",
                 "credit_target":   tp_credit,
@@ -1071,19 +1071,19 @@ def _calculate_inner(ticker_dir, ticker):
                         result["management_rules"] = build_management_rules(
                             "put_spread", S,
                             result["legs"][0]["strike"],
-                            result["credit"], em_levels, expiry_str, mgmt_str
+                            result["credit"], em_levels, expiry_str, mgmt_str, ticker
                         )
                     elif name == "call_spread":
                         result["management_rules"] = build_management_rules(
                             "call_spread", S,
                             result["legs"][0]["strike"],
-                            result["credit"], em_levels, expiry_str, mgmt_str
+                            result["credit"], em_levels, expiry_str, mgmt_str, ticker
                         )
                     elif name == "iron_condor":
                         result["management_rules"] = build_management_rules(
                             "iron_condor", S,
                             result["put_spread"]["legs"][0]["strike"],
-                            result["credit"], em_levels, expiry_str, mgmt_str
+                            result["credit"], em_levels, expiry_str, mgmt_str, ticker
                         )
                 except Exception as e:
                     data_issues.append(f"Management rules for {name} failed: {e}")
