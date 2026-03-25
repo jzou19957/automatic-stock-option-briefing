@@ -1,8 +1,9 @@
-
 import os
 import json
+import time
 from pathlib import Path
 from datetime import datetime
+
 import requests
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -18,14 +19,18 @@ EMAIL_PROMPT = """
 You are a structured options email formatter.
 
 You receive one stock's calculated options analysis in semi-clean JSON.
-Convert it into a concise email-friendly JSON. 
+Convert it into a concise, trader-friendly, email-ready JSON.
 
 RULES:
 - Output valid JSON only
 - No markdown
+- No explanation outside JSON
+- No extra keys
 - Use only provided values
 - Keep language concise and trader-friendly
-- Be friendly, natural, and comprehensive
+- The result should be rich enough for an email card
+- Keep risk flags short
+- Keep summary_for_traders informative but concise
 
 OUTPUT SCHEMA:
 {
@@ -52,8 +57,21 @@ OUTPUT SCHEMA:
   "summary_for_traders": str
 }
 
+CONTENT RULES:
+- premium_attractiveness_score should look like "2.6/10"
+- include IV and IVR in highlights
+- strike_details should be simple and human-readable
+- if strategy is skip / none, make that explicit
+- use management rules from input
+- use upside/downside alert levels from input
+- summary_for_traders should explain:
+  1. what the setup looks like,
+  2. why the strategy was chosen,
+  3. what the trader should watch
+
 INPUT JSON:
 """
+
 
 def safe_get(d, *keys, default=None):
     cur = d
@@ -63,11 +81,13 @@ def safe_get(d, *keys, default=None):
         cur = cur[k]
     return cur
 
+
 def get_latest_date_folder():
     date_dirs = sorted([p for p in DATA_DIR.iterdir() if p.is_dir()], reverse=True)
     if not date_dirs:
         raise FileNotFoundError("No dated data folders found")
     return date_dirs[0]
+
 
 def build_email_llm_input(data):
     rec = data.get("recommendation", {}) or {}
@@ -128,9 +148,62 @@ def build_email_llm_input(data):
         }
     }
 
-def call_gemini(clean_data):
+
+def fallback_email_json(clean_input):
+    strat = clean_input.get("recommended_strategy", {}) or {}
+    score = clean_input.get("attractiveness_score")
+    score_text = f"{score}/10" if score is not None else "N/A"
+
+    strategy_name = strat.get("strategy") or "NONE - SKIP"
+    strike_details = strat.get("legs") or "N/A - NO EDGE"
+
+    risk_flags = []
+    if clean_input.get("earnings_note"):
+        risk_flags.append(clean_input["earnings_note"])
+    if strat.get("expected_move_safety_note"):
+        risk_flags.append(strat["expected_move_safety_note"])
+    if strat.get("meets_one_third") is False:
+        risk_flags.append("Does not meet the one-third credit rule")
+    if not risk_flags:
+        risk_flags.append("Fallback summary used because Gemini was temporarily unavailable")
+
+    return {
+        "ticker": clean_input.get("ticker"),
+        "highlights": {
+            "premium_attractiveness_score": score_text,
+            "iv": clean_input.get("iv_30"),
+            "ivr": clean_input.get("ivr"),
+            "bias": clean_input.get("bias"),
+            "recommended_strategy": strategy_name,
+            "expiry_date": strat.get("expiry"),
+            "dte": strat.get("dte"),
+            "strike_details": strike_details,
+            "management_date": strat.get("management_date") or clean_input.get("management_date"),
+        },
+        "risk_flags": risk_flags[:4],
+        "management_triggers": {
+            "take_profit": f"Close position at 50% of original credit ({strat.get('take_profit_at')})",
+            "time_based_management": f"Close or roll position at 21 DTE on {strat.get('management_date') or clean_input.get('management_date')}",
+            "upside_alert_price": clean_input.get("half_one_sd_upside_alert"),
+            "downside_alert_price": clean_input.get("half_one_sd_downside_alert"),
+            "alert_note": "These levels represent halfway to the 1 standard deviation expected move and should be used as early warning indicators.",
+        },
+        "summary_for_traders": (
+            f"{clean_input.get('ticker')} has a premium attractiveness score of {score_text}. "
+            f"Current IV is {clean_input.get('iv_30')} and IVR is {clean_input.get('ivr')}, with a {clean_input.get('bias')} bias. "
+            f"The current recommendation is {strategy_name}. "
+            f"Monitor the alert levels and respect the 50% profit and 21 DTE management rules."
+        ),
+    }
+
+
+def call_gemini(clean_data, max_retries=5):
     if not API_KEY:
-        raise RuntimeError("Missing GEMINI_API_KEY")
+        return {
+            "status": "ERROR",
+            "ticker": clean_data.get("ticker"),
+            "error": "Missing GEMINI_API_KEY"
+        }
 
     payload = {
         "contents": [
@@ -148,17 +221,67 @@ def call_gemini(clean_data):
         }
     }
 
-    response = requests.post(
-        f"{URL}?key={API_KEY}",
-        headers={"Content-Type": "application/json"},
-        json=payload,
-        timeout=45
-    )
-    response.raise_for_status()
+    last_error = None
 
-    raw_text = response.json()["candidates"][0]["content"]["parts"][0]["text"]
-    cleaned = raw_text.strip().replace("```json", "").replace("```", "").strip()
-    return json.loads(cleaned)
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = requests.post(
+                f"{URL}?key={API_KEY}",
+                headers={"Content-Type": "application/json"},
+                json=payload,
+                timeout=60
+            )
+
+            if response.status_code in (429, 500, 502, 503, 504):
+                last_error = f"HTTP {response.status_code}: {response.text[:300]}"
+                if attempt < max_retries:
+                    sleep_seconds = min(2 ** attempt, 20)
+                    print(
+                        f"Gemini temporary error for {clean_data.get('ticker')} "
+                        f"on attempt {attempt}/{max_retries}: {response.status_code}. "
+                        f"Retrying in {sleep_seconds}s..."
+                    )
+                    time.sleep(sleep_seconds)
+                    continue
+                return {
+                    "status": "ERROR",
+                    "ticker": clean_data.get("ticker"),
+                    "error": f"Gemini failed after {max_retries} attempts",
+                    "details": last_error,
+                }
+
+            response.raise_for_status()
+
+            raw_text = response.json()["candidates"][0]["content"]["parts"][0]["text"]
+            cleaned = raw_text.strip().replace("```json", "").replace("```", "").strip()
+            return json.loads(cleaned)
+
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+            last_error = str(e)
+            if attempt < max_retries:
+                sleep_seconds = min(2 ** attempt, 20)
+                print(
+                    f"Gemini connection/timeout error for {clean_data.get('ticker')} "
+                    f"on attempt {attempt}/{max_retries}. Retrying in {sleep_seconds}s..."
+                )
+                time.sleep(sleep_seconds)
+                continue
+            return {
+                "status": "ERROR",
+                "ticker": clean_data.get("ticker"),
+                "error": f"Gemini failed after {max_retries} attempts",
+                "details": last_error,
+            }
+
+        except Exception as e:
+            last_error = str(e)
+            return {
+                "status": "ERROR",
+                "ticker": clean_data.get("ticker"),
+                "error": "Unexpected Gemini error",
+                "details": last_error,
+            }
+
 
 def load_top10():
     latest = get_latest_date_folder()
@@ -177,10 +300,12 @@ def load_top10():
     ranked = sorted(calculated, key=lambda x: x.get("attractiveness_score", 0), reverse=True)
     return latest, ranked[:10]
 
+
 def fmt_num(value, decimals=2):
     if isinstance(value, (int, float)):
         return f"{value:.{decimals}f}"
     return "N/A"
+
 
 def badge_style(score_text):
     try:
@@ -196,11 +321,13 @@ def badge_style(score_text):
         return ("#fee2e2", "#991b1b", "#fca5a5")
     return ("#e5e7eb", "#374151", "#cbd5e1")
 
+
 def strategy_style(strategy):
     s = (strategy or "").upper()
     if "SKIP" in s or "NONE" in s:
-        return ("#f3f4f6", "#6b7280")
-    return ("#eff6ff", "#1d4ed8")
+        return ("#f3f4f6", "#6b7280", "#e5e7eb")
+    return ("#eff6ff", "#1d4ed8", "#bfdbfe")
+
 
 def render_stat_pill(label, value):
     return f"""
@@ -209,6 +336,7 @@ def render_stat_pill(label, value):
       <span style="color:#64748b;">{label}:</span> <b>{value}</b>
     </div>
     """
+
 
 def build_html_email(top10_email_json, as_of_date):
     cards = []
@@ -219,7 +347,7 @@ def build_html_email(top10_email_json, as_of_date):
         mgmt = item["management_triggers"]
 
         score_bg, score_fg, score_bd = badge_style(h["premium_attractiveness_score"])
-        strat_bg, strat_fg = strategy_style(h["recommended_strategy"])
+        strat_bg, strat_fg, strat_bd = strategy_style(h["recommended_strategy"])
 
         risk_html = "".join(
             f'<li style="margin:0 0 6px 0;">{r}</li>' for r in risks[:4]
@@ -247,7 +375,7 @@ def build_html_email(top10_email_json, as_of_date):
                           border-radius:999px;padding:8px 12px;font-size:13px;font-weight:700;">
                 Premium Score {h['premium_attractiveness_score']}
               </div>
-              <div style="background:{strat_bg};color:{strat_fg};border:1px solid #dbeafe;
+              <div style="background:{strat_bg};color:{strat_fg};border:1px solid {strat_bd};
                           border-radius:999px;padding:8px 12px;font-size:13px;font-weight:700;">
                 {h['recommended_strategy']}
               </div>
@@ -329,16 +457,28 @@ def build_html_email(top10_email_json, as_of_date):
     """
     return html
 
+
 def main():
     latest, top10 = load_top10()
     if not top10:
         raise RuntimeError("No ranked calculated.json files found")
 
     email_json = []
+    failed_tickers = []
+
     for data in top10:
         clean_input = build_email_llm_input(data)
         out = call_gemini(clean_input)
+
+        if isinstance(out, dict) and out.get("status") == "ERROR":
+            print(f"Gemini failed for {clean_input.get('ticker')}, using fallback summary")
+            failed_tickers.append(clean_input.get("ticker"))
+            out = fallback_email_json(clean_input)
+
         email_json.append(out)
+
+    if not email_json:
+        raise RuntimeError("No email content available")
 
     today_str = datetime.now().strftime("%Y-%m-%d")
     html = build_html_email(email_json, today_str)
@@ -349,9 +489,24 @@ def main():
     with open(REPORT_DIR / "top10_email.html", "w", encoding="utf-8") as f:
         f.write(html)
 
+    with open(REPORT_DIR / "top10_email_debug.json", "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "source_date_folder": str(latest),
+                "failed_tickers_used_fallback": failed_tickers,
+                "generated_at": today_str,
+                "count": len(email_json),
+            },
+            f,
+            indent=2,
+            ensure_ascii=False,
+        )
+
     print(f"Saved: {REPORT_DIR / 'top10_email_payload.json'}")
     print(f"Saved: {REPORT_DIR / 'top10_email.html'}")
+    print(f"Saved: {REPORT_DIR / 'top10_email_debug.json'}")
     print(f"Source date folder: {latest}")
+
 
 if __name__ == "__main__":
     main()
