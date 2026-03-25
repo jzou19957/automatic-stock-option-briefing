@@ -340,6 +340,7 @@ def strategy_chip_colors(strategy_name):
     return ("#eff6ff", "#1d4ed8", "#bfdbfe")
 
 
+# ====================== IMPROVED PROFESSIONAL CARD ======================
 def build_card(item):
     top = item["top_row"]
     stats = item["basic_stats"]
@@ -350,98 +351,84 @@ def build_card(item):
     chip_bg, chip_fg, chip_bd = strategy_chip_colors(top["strategy_name"])
 
     return f"""
-    <div style="background:#ffffff;border:1px solid #dbe2ea;border-radius:16px;
-                padding:22px 22px 18px 22px;margin-bottom:18px;
-                box-shadow:0 8px 22px rgba(15,23,42,0.05);">
-
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;">
-        <div style="font-size:28px;font-weight:800;color:#0f172a;letter-spacing:0.2px;">
+    <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:20px;padding:28px;margin-bottom:24px;box-shadow:0 10px 30px -8px rgb(15 23 42 / 0.08);">
+      
+      <!-- Header -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;">
+        <div style="font-size:32px;font-weight:800;color:#0f172a;letter-spacing:-0.5px;">
           {item['ticker']}
         </div>
-
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-          <div style="background:#0f172a;color:#ffffff;border-radius:999px;padding:8px 12px;
-                      font-size:13px;font-weight:700;">
+        
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <div style="background:#0f172a;color:#ffffff;border-radius:9999px;padding:8px 18px;font-size:14px;font-weight:700;">
             Score {score_text}
           </div>
-          <div style="background:{chip_bg};color:{chip_fg};border:1px solid {chip_bd};
-                      border-radius:999px;padding:8px 12px;font-size:13px;font-weight:700;">
+          <div style="background:{chip_bg};color:{chip_fg};border:1px solid {chip_bd};border-radius:9999px;padding:8px 18px;font-size:14px;font-weight:700;">
             {top['strategy_name']}
           </div>
         </div>
       </div>
 
-      <div style="margin-top:12px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;">
-        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;">
-          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.7px;">Current Price</div>
-          <div style="margin-top:4px;font-size:16px;font-weight:700;color:#0f172a;">{fmt_num(top['current_price'], 2, '$')}</div>
+      <!-- Stats Grid -->
+      <div style="margin-top:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;">
+        <div style="background:#f8fafc;border:1px solid #f1f5f9;border-radius:14px;padding:14px 16px;">
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;">Current Price</div>
+          <div style="margin-top:4px;font-size:19px;font-weight:700;color:#0f172a;">{fmt_num(top['current_price'], 2, '$')}</div>
         </div>
-        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;">
-          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.7px;">Report Date</div>
-          <div style="margin-top:4px;font-size:16px;font-weight:700;color:#0f172a;">{item['report_date']}</div>
+        <div style="background:#f8fafc;border:1px solid #f1f5f9;border-radius:14px;padding:14px 16px;">
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;">Report Date</div>
+          <div style="margin-top:4px;font-size:19px;font-weight:700;color:#0f172a;">{item['report_date']}</div>
         </div>
-        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;">
-          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.7px;">IV</div>
-          <div style="margin-top:4px;font-size:16px;font-weight:700;color:#0f172a;">{stats['iv']}</div>
+        <div style="background:#f8fafc;border:1px solid #f1f5f9;border-radius:14px;padding:14px 16px;">
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;">IV</div>
+          <div style="margin-top:4px;font-size:19px;font-weight:700;color:#0f172a;">{stats['iv']}</div>
         </div>
-        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;">
-          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.7px;">IVR</div>
-          <div style="margin-top:4px;font-size:16px;font-weight:700;color:#0f172a;">{stats['ivr']}</div>
+        <div style="background:#f8fafc;border:1px solid #f1f5f9;border-radius:14px;padding:14px 16px;">
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;">IVR</div>
+          <div style="margin-top:4px;font-size:19px;font-weight:700;color:#0f172a;">{stats['ivr']}</div>
         </div>
-        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;">
-          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.7px;">Bias</div>
-          <div style="margin-top:4px;font-size:16px;font-weight:700;color:#0f172a;">{stats['bias']}</div>
-        </div>
-      </div>
-
-      <div style="margin-top:12px;display:grid;grid-template-columns:3fr 1fr;gap:10px;">
-        <div style="background:#0f172a;border-radius:14px;padding:14px 16px;">
-          <div style="font-size:11px;color:#93c5fd;text-transform:uppercase;letter-spacing:0.8px;font-weight:700;">
-            Recommended Strikes
-          </div>
-          <div style="margin-top:6px;font-size:18px;line-height:1.5;font-weight:800;color:#ffffff;">
-            {stats['recommended_strikes']}
-          </div>
-        </div>
-        <div style="background:#0f172a;border-radius:14px;padding:14px 16px;">
-          <div style="font-size:11px;color:#93c5fd;text-transform:uppercase;letter-spacing:0.8px;font-weight:700;">
-            DTE
-          </div>
-          <div style="margin-top:6px;font-size:22px;line-height:1.3;font-weight:800;color:#ffffff;">
-            {stats['dte']}
-          </div>
+        <div style="background:#f8fafc;border:1px solid #f1f5f9;border-radius:14px;padding:14px 16px;">
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;">Bias</div>
+          <div style="margin-top:4px;font-size:19px;font-weight:700;color:#0f172a;">{stats['bias']}</div>
         </div>
       </div>
 
-      <div style="margin-top:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;">
-        <div style="font-size:11px;color:#475569;text-transform:uppercase;letter-spacing:0.8px;font-weight:700;">
-          Management Notes
+      <!-- Recommended Strikes + DTE -->
+      <div style="margin-top:20px;display:grid;grid-template-columns:3fr 1fr;gap:16px;">
+        <div style="background:#0f172a;border-radius:16px;padding:18px 20px;color:#fff;">
+          <div style="font-size:11px;color:#93c5fd;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Recommended Strikes</div>
+          <div style="margin-top:8px;font-size:19px;line-height:1.4;font-weight:700;">{stats['recommended_strikes']}</div>
         </div>
-        <div style="margin-top:8px;font-size:14px;line-height:1.75;color:#0f172a;">
+        <div style="background:#0f172a;border-radius:16px;padding:18px 20px;color:#fff;text-align:center;">
+          <div style="font-size:11px;color:#93c5fd;text-transform:uppercase;letter-spacing:1px;font-weight:700;">DTE</div>
+          <div style="margin-top:8px;font-size:32px;font-weight:800;">{stats['dte']}</div>
+        </div>
+      </div>
+
+      <!-- Management Notes -->
+      <div style="margin-top:24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:18px 20px;">
+        <div style="font-size:11px;color:#475569;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Management Notes</div>
+        <div style="margin-top:10px;font-size:14.5px;line-height:1.65;color:#0f172a;">
           {item['management_notes']}
         </div>
       </div>
 
-      <div style="margin-top:14px;background:#fafafa;border-left:4px solid #1d4ed8;border-radius:12px;padding:16px 18px;">
-        <div style="font-size:11px;color:#475569;text-transform:uppercase;letter-spacing:0.8px;font-weight:700;">
-          Position Summary
-        </div>
-        <div style="margin-top:8px;font-size:14px;line-height:1.85;color:#111827;">
+      <!-- Position Summary -->
+      <div style="margin-top:24px;background:#fafafa;border-left:5px solid #1d4ed8;border-radius:16px;padding:20px 22px;">
+        <div style="font-size:11px;color:#475569;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Position Summary</div>
+        <div style="margin-top:10px;font-size:14.5px;line-height:1.75;color:#111827;">
           {item['position_summary']}
         </div>
       </div>
 
-      <div style="margin-top:16px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;
-                    font-size:12px;font-weight:700;color:#475569;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.6px;">
+      <!-- Premium Score Bar -->
+      <div style="margin-top:24px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:#475569;margin-bottom:8px;">
           <span>Premium Score</span>
           <span>{score_text}</span>
         </div>
-        <div style="width:100%;height:10px;background:#e5e7eb;border-radius:999px;overflow:hidden;">
-          <div style="width:{score_pct}%;height:100%;
-                      background:linear-gradient(90deg,{bar_start} 0%,{bar_end} 100%);
-                      border-radius:999px;">
-          </div>
+        <div style="height:12px;background:#e2e8f0;border-radius:9999px;overflow:hidden;">
+          <div style="width:{score_pct}%;height:100%;background:linear-gradient(90deg,{bar_start} 0%,{bar_end} 100%);"></div>
         </div>
       </div>
 
@@ -449,31 +436,47 @@ def build_card(item):
     """
 
 
+# ====================== IMPROVED EMAIL TEMPLATE ======================
 def build_html_email(top10_email_json, as_of_date):
     cards_html = "".join(build_card(item) for item in top10_email_json)
 
     return f"""
+    <!DOCTYPE html>
     <html>
-      <body style="margin:0;padding:0;background:#eef2f7;font-family:Inter,Arial,Helvetica,sans-serif;">
-        <div style="max-width:1040px;margin:0 auto;padding:24px;">
-          <div style="background:linear-gradient(135deg,#0f172a 0%,#1d4ed8 100%);
-                      color:#ffffff;border-radius:20px;padding:30px 30px 24px 30px;margin-bottom:24px;
-                      box-shadow:0 10px 30px rgba(15,23,42,0.18);">
-            <div style="font-size:30px;font-weight:800;line-height:1.2;">
-              Top 10 Premium Selling Setups - Lossdog Research
-            </div>
-            <div style="font-size:15px;line-height:1.7;color:#dbeafe;margin-top:10px;max-width:820px;">
-              {as_of_date} | Liquid Mega-Cap / ETF Universe | Ranked by Premium Attractiveness
-            </div>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Top 10 Premium Selling Setups • Lossdog Research</title>
+    </head>
+    <body style="margin:0;padding:0;background:#f1f5f9;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+      
+      <div style="max-width:1100px;margin:40px auto;background:#ffffff;border-radius:24px;overflow:hidden;box-shadow:0 25px 50px -12px rgb(15 23 42 / 0.15);">
+        
+        <!-- HEADER -->
+        <div style="background:linear-gradient(135deg,#0f172a 0%,#1e40af 100%);color:#fff;padding:52px 48px 36px 48px;">
+          <div style="font-size:13px;font-weight:600;letter-spacing:2.5px;opacity:0.9;margin-bottom:6px;">
+            LOSSDOG RESEARCH • OPTIONS PIPELINE
           </div>
-
-          {cards_html}
-
-          <div style="text-align:center;color:#64748b;font-size:12px;padding:10px 0 18px 0;">
-            Generated automatically from your Google Sheet universe, options pipeline, and Gemini research formatter.
+          <h1 style="margin:0;font-size:38px;font-weight:800;line-height:1.05;letter-spacing:-1px;">
+            Top 10 Premium Selling Setups
+          </h1>
+          <div style="margin-top:12px;font-size:17px;opacity:0.85;">
+            {as_of_date} &nbsp;&nbsp;|&nbsp;&nbsp; Liquid Mega-Cap / ETF Universe
           </div>
         </div>
-      </body>
+
+        <!-- CARDS -->
+        <div style="padding:40px 48px 48px 48px;">
+          {cards_html}
+        </div>
+
+        <!-- FOOTER -->
+        <div style="text-align:center;padding:24px 0 32px 0;color:#64748b;font-size:13px;">
+          Generated automatically from your Google Sheet universe, options pipeline, and Gemini research formatter.
+        </div>
+
+      </div>
+    </body>
     </html>
     """
 
