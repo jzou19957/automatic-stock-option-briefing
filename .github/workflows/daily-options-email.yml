@@ -2,8 +2,8 @@ name: Daily Options Email
 
 on:
   # Mon–Fri at 13:00 UTC = 7am CST / 8am CDT
-  schedule:
-    - cron: "0 13 * * 1-5"
+  # schedule:
+  #   - cron: "0 13 * * 1-5"
 
   # Allow manual trigger from Actions tab for testing
   workflow_dispatch:
@@ -55,8 +55,9 @@ jobs:
             reports/top10_email_debug.json
           retention-days: 7
 
-      - name: Send email
-        env:
-          GMAIL_USERNAME:     ${{ secrets.GMAIL_USERNAME }}
-          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-        run: python send_top10_email.py
+      # Send step disabled — uncomment when ready to re-enable
+      # - name: Send email
+      #   env:
+      #     GMAIL_USERNAME:     ${{ secrets.GMAIL_USERNAME }}
+      #     GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+      #   run: python send_top10_email.py
