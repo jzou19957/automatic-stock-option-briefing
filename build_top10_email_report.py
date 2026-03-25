@@ -23,8 +23,8 @@ URL     = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:gene
 # ─────────────────────────────────────────────────────────────────────────────
 
 EMAIL_PROMPT = """
-You are a senior options desk analyst at a proprietary trading firm.
-Your audience is experienced premium sellers who know Tastytrade mechanics cold.
+You are a senior options trading coach proving daily option trade recommendations to experienced premium sellers. You have a deep understanding of tastytrade's 45-DTE framework and the specific mechanics of each strategy. Your task is to analyze the provided data for a single ticker and produce concise, actionable commentary that can be directly used in an email report.
+Your audience is experienced premium sellers who know tastytrade mechanics cold.
 Do not explain what IV, IVR, delta, or theta mean. Just use them.
 
 ════════════════════════════════════════════════════
@@ -95,7 +95,7 @@ management_notes (2-3 sentences, hard limit):
          Watch $Y on the downside — a close there starts the roll clock."
   BAD:  "Traders should consider taking profits when the position reaches approximately 50% of maximum potential..."
 
-position_summary (5-7 sentences, desk voice):
+position_summary (5-7 sentences, professional voice but also comprehensive, detail-oriented, customer-focused):
   Sentence 1: Lead with the vol edge — state IV/HV and IVR as a single verdict. Is the premium rich or not?
   Sentence 2: What specifically drove the strategy choice — bias, skew, earnings safety, liquidity.
   Sentence 3: Describe the structure in one line: strikes, credit, defined/undefined, breakeven(s).
@@ -103,20 +103,11 @@ position_summary (5-7 sentences, desk voice):
   Sentence 5: Expected move context — does 1 sigma clear the short strike? By how much?
   Sentence 6 (optional): Skew or earnings note if relevant.
   Sentence 7: One-line conviction statement. Blunt. E.g. "This is a clean structure at fair credit — take it." or "Marginal setup; size accordingly."
-  Final line: Always close with a one-sentence Lossdog/Tastytrade framework reference. Vary the wording naturally but always name both.
-  Examples:
-    "Per Lossdog/Tastytrade mechanics: 50% profit target, hard close at 21 DTE, roll only OTM for net credit."
-    "Lossdog/Tastytrade rule: defined risk mandatory with earnings inside the window — no exceptions."
-    "Standard Lossdog/Tastytrade pipeline: take 50% and step aside by [mgmt_date], no holding through expiry."
-    "Lossdog/Tastytrade framework: size small, sell premium at elevated IV/HV, let theta do the work."
-
-  NEVER use: "it is important to note", "traders should be aware", "in the context of",
-             "should be considered", "provides an opportunity", "this setup represents"
 
 STYLE EXAMPLES:
   BAD:  "NVDA currently carries a premium attractiveness score which should be judged in the
          context of its implied-versus-realized volatility relationship..."
-  GOOD: "IV/HV at 1.61x with IVR 74 — options are meaningfully rich relative to recent realized,
+  GOOD: "NVDA IV/HV at 1.61x with IVR 74 — options are meaningfully rich relative to recent realized,
          and the rank confirms this isn't a one-day spike. Bullish MA posture and flat put skew
          pushed this toward a short put spread rather than a condor..."
 
@@ -469,10 +460,10 @@ def build_card(item, rank):
         vc = "#1d4ed8" if accent else "#0f172a"
         return (
             f'<tr>'
-            f'<td style="padding:7px 12px 7px 0;font-size:10.5px;color:#64748b;'
+            f'<td style="padding:7px 8px 7px 0;font-size:10.5px;color:#94a3b8;'
             f'font-family:\'Courier New\',monospace;border-bottom:1px solid #f1f5f9;'
             f'white-space:nowrap;">{label}</td>'
-            f'<td style="padding:7px 0 7px 12px;font-size:10.5px;font-weight:700;color:{vc};'
+            f'<td style="padding:7px 0 7px 0;font-size:11px;font-weight:700;color:{vc};'
             f'font-family:\'Courier New\',monospace;text-align:right;'
             f'border-bottom:1px solid #f1f5f9;">{value}</td>'
             f'</tr>'
@@ -586,10 +577,11 @@ def build_card(item, rank):
         f'<tr><td style="padding:0 20px;">'
         f'<table width="100%" cellpadding="0" cellspacing="0">'
         f'<tr>'
-        f'<td style="width:50%;vertical-align:top;padding:0;">'
+        f'<td style="width:47%;vertical-align:top;padding:0;">'
         f'<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'
         f'{left_stats}</table></td>'
-        f'<td style="width:50%;vertical-align:top;padding:0;">'
+        f'<td style="width:6%;font-size:0;">&nbsp;</td>'
+        f'<td style="width:47%;vertical-align:top;padding:0;">'
         f'<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'
         f'{right_stats}</table></td>'
         f'</tr></table>'
@@ -644,10 +636,10 @@ def build_html_email(top10_email_json, as_of_date):
 <div style="max-width:700px;margin:28px auto 48px auto;">
 
   <!-- HEADER -->
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f2f5;border-bottom:1px solid #d1d5db;">
     <tr>
       <td style="padding:26px 32px 8px 32px;">
-        <div style="font-size:20px;font-weight:800;color:#f8fafc;letter-spacing:-0.3px;line-height:1.2;">
+        <div style="font-size:20px;font-weight:800;color:#1e293b;letter-spacing:-0.3px;line-height:1.2;">
           Lossdog Top 10 Premium Selling Setups
         </div>
         <div style="font-size:11px;color:#64748b;font-family:'Courier New',monospace;margin-top:5px;">
@@ -656,19 +648,19 @@ def build_html_email(top10_email_json, as_of_date):
       </td>
     </tr>
     <tr>
-      <td style="padding:10px 32px;">
-        <div style="height:1px;background:#1e293b;"></div>
+      <td style="padding:8px 32px;">
+        <div style="height:1px;background:#d1d5db;"></div>
       </td>
     </tr>
     <tr>
       <td style="padding:0 32px 14px 32px;">
         <table width="100%" cellpadding="0" cellspacing="0">
           <tr>
-            <td style="font-size:11px;font-family:'Courier New',monospace;color:#94a3b8;">
+            <td style="font-size:11px;font-family:'Courier New',monospace;color:#475569;">
               {date_display}
             </td>
             <td style="text-align:right;">
-              <span style="font-size:10px;font-family:'Courier New',monospace;color:#475569;">
+              <span style="font-size:10px;font-family:'Courier New',monospace;color:#94a3b8;">
                 {symbols_line}
               </span>
             </td>
@@ -678,11 +670,11 @@ def build_html_email(top10_email_json, as_of_date):
     </tr>
     <tr>
       <td style="padding:0 32px;">
-        <div style="height:2px;background:linear-gradient(90deg,#3b82f6 0%,#1e40af 60%,transparent 100%);"></div>
+        <div style="height:2px;background:linear-gradient(90deg,#94a3b8 0%,#cbd5e1 70%,transparent 100%);"></div>
       </td>
     </tr>
     <tr>
-      <td style="padding:8px 32px 10px 32px;">
+      <td style="padding:8px 32px 10px 32px;background:#e8ecf0;">
         <table cellpadding="0" cellspacing="0">
           <tr>
             <td style="font-size:9px;font-family:'Courier New',monospace;color:#475569;padding-right:14px;">SCORE:</td>
@@ -705,11 +697,11 @@ def build_html_email(top10_email_json, as_of_date):
   </table>
 
   <!-- FOOTER -->
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;border-top:1px solid #1e293b;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#e8ecf0;border-top:1px solid #d1d5db;">
     <tr>
       <td style="padding:12px 32px;">
         <div style="font-size:9px;font-family:'Courier New',monospace;color:#334155;">
-          Lossdog Research &nbsp;&middot;&nbsp; Not investment advice &nbsp;&middot;&nbsp; For personal use only
+          <span style="color:#94a3b8;">Lossdog Research &nbsp;&middot;&nbsp; Not investment advice &nbsp;&middot;&nbsp; For personal use only</span>
         </div>
       </td>
     </tr>
